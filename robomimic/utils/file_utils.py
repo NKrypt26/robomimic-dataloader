@@ -10,6 +10,9 @@ import urllib.request
 import numpy as np
 from collections import OrderedDict
 from tqdm import tqdm
+import pandas as pd
+import mmap
+impor re
 
 import torch
 
@@ -476,3 +479,14 @@ def download_url(url, download_dir, check_overwrite=True):
     with DownloadProgressBar(unit='B', unit_scale=True,
                              miniters=1, desc=fname) as t:
         urllib.request.urlretrieve(url, filename=file_to_write, reporthook=t.update_to)
+
+def make_dataframe_from_logs(path: str) -> pd.DataFrame or None:
+    out = None
+    re_str = r"Train Epoch \d+\n(\{(\n.*){11}\n\})"
+    with open(path, 'r+') as f:
+        data = mmap.mmap(f.fileno(), 0).read().decode('utf-8')
+        g = re.findall(re_str, data)
+        out = [json.loads(x[0]) for x in g]
+
+    df = pd.DataFrame(out)
+    return df
