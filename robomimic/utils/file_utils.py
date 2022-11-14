@@ -482,11 +482,14 @@ def download_url(url, download_dir, check_overwrite=True):
 
 def make_dataframe_from_logs(path: str) -> pd.DataFrame or None:
     out = None
-    re_str = r"Train Epoch \d+\n(\{(\n.*){11}\n\})"
+    re_str = r"Train Epoch \d+\n(\{(\n.*){11}\n\})\n\nEpoch \d+ Memory Usage: (\d+) MB"
     with open(path, 'r+') as f:
         data = mmap.mmap(f.fileno(), 0).read().decode('utf-8')
-        g = re.findall(re_str, data)
-        out = [json.loads(x[0]) for x in g]
-
+        groups = re.findall(re_str, data)
+        out = []
+        for group in groups:
+            stats = json.loads(group[0])
+            stats['Memory_Used'] = int(group[-1])
+            out.append(stats)
     df = pd.DataFrame(out)
     return df
