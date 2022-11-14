@@ -481,6 +481,17 @@ def download_url(url, download_dir, check_overwrite=True):
         urllib.request.urlretrieve(url, filename=file_to_write, reporthook=t.update_to)
 
 def make_dataframe_from_logs(path: str) -> pd.DataFrame or None:
+    """
+    Helper method to parse logs and lift the timing and memory usage. Useful 
+    for profiling and comparing the stats for multiple runs when tweaking efficiency
+    of data loading.
+
+    Args:
+        path (str): path of the log file to be parsed
+
+    Returns:
+        pd.DataFrame or None: pandas dataframe storing the stats.
+    """
     out = None
     re_str = r"Train Epoch \d+\n(\{(\n.*){11}\n\})\n\nEpoch \d+ Memory Usage: (\d+) MB"
     with open(path, 'r+') as f:
