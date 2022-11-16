@@ -121,7 +121,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             self.obs_normalization_stats = self.normalize_obs()
 
         # maybe store dataset in memory for fast access
-        if self.hdf5_cache_mode in ["all", "low_dim"]:
+        if self.hdf5_cache_mode in ["all", "low_dim", "cached"]:
             obs_keys_in_memory = self.obs_keys
             if self.hdf5_cache_mode == "low_dim":
                 # only store low-dim observations
@@ -138,8 +138,10 @@ class SequenceDataset(torch.utils.data.Dataset):
                 dataset_keys=self.dataset_keys,
                 load_next_obs=self.load_next_obs
             )
+            elif self.hdf5_cache_mode == "compressed":
+                pass
 
-            if self.hdf5_cache_mode == "all":
+            elif self.hdf5_cache_mode == "all":
                 # cache getitem calls for even more speedup. We don't do this for
                 # "low-dim" since image observations require calls to getitem anyways.
                 print("SequenceDataset: caching get_item calls...")
