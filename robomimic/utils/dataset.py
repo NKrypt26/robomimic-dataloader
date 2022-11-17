@@ -3,6 +3,7 @@ This file contains Dataset classes that are used by torch dataloaders
 to fetch batches from hdf5 files.
 """
 import os
+import io
 import h5py
 import numpy as np
 from copy import deepcopy
@@ -87,7 +88,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         self.hdf5_normalize_obs = hdf5_normalize_obs
         self._hdf5_file = None
 
-        assert hdf5_cache_mode in ["all", "low_dim", None]
+        assert hdf5_cache_mode in ["all", "low_dim", "compressed", None]
         self.hdf5_cache_mode = hdf5_cache_mode
 
         self.load_next_obs = load_next_obs
@@ -121,7 +122,7 @@ class SequenceDataset(torch.utils.data.Dataset):
             self.obs_normalization_stats = self.normalize_obs()
 
         # maybe store dataset in memory for fast access
-        if self.hdf5_cache_mode in ["all", "low_dim", "cached"]:
+        if self.hdf5_cache_mode in ["all", "low_dim", "compressed"]:
             obs_keys_in_memory = self.obs_keys
             if self.hdf5_cache_mode == "low_dim":
                 # only store low-dim observations
@@ -138,10 +139,8 @@ class SequenceDataset(torch.utils.data.Dataset):
                 dataset_keys=self.dataset_keys,
                 load_next_obs=self.load_next_obs
             )
-            elif self.hdf5_cache_mode == "compressed":
-                pass
 
-            elif self.hdf5_cache_mode == "all":
+            if self.hdf5_cache_mode in ["all", "compressed"]:
                 # cache getitem calls for even more speedup. We don't do this for
                 # "low-dim" since image observations require calls to getitem anyways.
                 print("SequenceDataset: caching get_item calls...")
@@ -150,6 +149,10 @@ class SequenceDataset(torch.utils.data.Dataset):
                 # don't need the previous cache anymore
                 del self.hdf5_cache
                 self.hdf5_cache = None
+
+            elif self.hdf5_cache_mode == "compressed":
+                pass
+
         else:
             self.hdf5_cache = None
 
@@ -404,13 +407,17 @@ class SequenceDataset(torch.utils.data.Dataset):
         """
         if self.hdf5_cache_mode == "all":
             return self.getitem_cache[index]
+        if self.hdf5_cache_mode == "compressed":
+            item = deepcopy(self.getitem_cache[index])
+            [v.seek(0) for _,v in item['obs'].items()]
+            item['obs'] = {k: np.load(v)['val'] for k,v in item['obs'].items()}
+            return item
         return self.get_item(index)
 
     def get_item(self, index):
         """
         Main implementation of getitem when not using cache.
         """
-
         demo_id = self._index_to_demo_id[index]
         demo_start_index = self._demo_id_to_start_indices[demo_id]
         demo_length = self._demo_id_to_demo_length[demo_id]
@@ -443,6 +450,11 @@ class SequenceDataset(torch.utils.data.Dataset):
             seq_length=self.seq_length,
             prefix="obs"
         )
+        if self.hdf5_cache_mode == "compressed":
+            for k, v in meta['obs'].items():
+                meta['obs'][k] = io.BytesIO()
+                np.savez_compressed(meta['obs'][k], val=v)
+
         if self.hdf5_normalize_obs:
             meta["obs"] = ObsUtils.normalize_obs(meta["obs"], obs_normalization_stats=self.obs_normalization_stats)
 
